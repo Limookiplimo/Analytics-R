@@ -155,7 +155,58 @@ trialAssessment <- rbind(pastSales, pastSales_control95, pastSales_control5)
 ggplot(trialAssessment, aes(TransactionMonth, totSales, color = Store_type)) +
   geom_rect(data = trialAssessment[YEARMONTH < 201905 & YEARMONTH > 201901, ],
             aes(xmin = min(TransactionMonth), xmax = max(TransactionMonth), ymin = 0, 
-                ymax = Inf, color = NULL), show.legend = FALSE) +
+            ymax = Inf, color = NULL), show.legend = FALSE) +
   geom_line() +
   labs(x = "Operation month", y = "Total sales", title = "Total Sales by Month")
+
+# Scale pre-trial control customers to match pre-trial store customers
+scalingFactorControlCust <- preTrialMeasures[STORE_NBR == trial_store & YEARMONTH < 201902, sum(nCustomers)]/
+  preTrialMeasures[STORE_NBR == control_store & YEARMONTH < 201902, sum(nCustomers)]
+
+# Apply scaling factor
+measureOverTImeCusts <- measureOverTIme
+scaledControlCustomers <- measureOverTImeCusts[STORE_NBR == control_store,
+                          ][, controlCustomers := nCustomers * scalingFactorControlCust
+                          ][, Store_type := ifelse(STORE_NBR == trial_store, "Trial", ifelse(STORE_NBR == control_store, "Control", "Other stores"))]
+
+# Percentage difference
+percDiff <- merge(scaledControlCustomers[, c("YEARMONTH", "controlCustomers")],measureOverTImeCusts[STORE_NBR == trial_store, c("nCustomers", "YEARMONTH")],
+                  by = "YEARMONTH")[, percDiff := abs(controlCustomers - nCustomers) / controlCustomers]
+
+# Null hypothesis
+stdDev <- sd(percDiff[YEARMONTH < 201902, percDiff])
+degreesOfFreedom <- 7
+
+# Number of customers
+pastCustomers <- measureOverTImeCusts[, nCusts := mean(nCustomers), by = c("YEARMONTH", "Store_type")][Store_type %in% c("Trial", "Control"),]
+# 95th percentile
+pastCustomers_Controls95 <- pastCustomers[Store_type == "Control",][, nCusts:= nCusts * (1 + stdDev * 2)
+                            ][, Store_type := "Control 95th % confidence interval"]
+pastCustomers_Controls5 <- pastCustomers[Store_type == "Control",][, nCusts := nCusts * (1 - stdDev *2)
+                            ][, Store_type := "Control 5th % confidence interval"]
+trialAssessment <- rbind(pastCustomers, pastCustomers_Controls95, pastCustomers_Controls5)
+
+# Visual plots
+ggplot(trialAssessment, aes(TransactionMonth, nCusts, color = Store_type)) +
+  geom_rect(data = trialAssessment[YEARMONTH < 201905 & YEARMONTH > 201901 ,],
+            aes(xmin = min(TransactionMonth), xmax = max(TransactionMonth), ymin = 0,
+            ymax = Inf, color = NULL), show.legend = FALSE) +
+  geom_line() +
+  labs(x = "Operation month", y= "Total number of customers", title = "Total Number of Customers by Month")
+
+
+# Trial Store 86
+trial_store <- 86
+
+
+
+
+
+
+
+
+
+
+
+
 
